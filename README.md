@@ -88,6 +88,94 @@ The system uses **Llama 3.3 70B** (via Groq API) for intelligent file classifica
    └─ File automatically organized without user intervention
 ```
 
+## Pseudo code
+```python
+FUNCTION organize_file(file):
+    # Step 1: Validation
+    IF file.is_folder OR file.is_media OR file.already_organized:
+        RETURN skip
+    
+    # Step 2: Content Extraction
+    TRY:
+        content_bytes = download_file(file.id)
+        
+        IF file.type == "PDF":
+            content = extract_pdf_text(content_bytes)
+        ELSE IF file.type == "DOCX":
+            content = extract_docx_text(content_bytes)
+        ELSE IF file.type == "XLSX":
+            content = extract_excel_text(content_bytes)
+        ELSE:
+            content = extract_plain_text(content_bytes)
+        
+        content = truncate(content, MAX_LENGTH=3000)
+    CATCH error:
+        content = "Filename: " + file.name
+    
+    # Step 3: AI Classification
+    prompt = build_classification_prompt(file, content)
+    response = llm_api.invoke(prompt)
+    classification = parse_json(response)
+    
+    # Step 4: Decision Making
+    IF classification.confidence >= THRESHOLD (0.7):
+        destination_folder = classification.category
+    ELSE:
+        destination_folder = "Needs Review"
+    
+    # Step 5: File Movement
+    success = move_file_to_folder(file.id, destination_folder)
+    
+    # Step 6: Logging
+    IF success:
+        LOG("✓ Moved '" + file.name + "' → " + destination_folder)
+        mark_as_organized(file.id)
+        RETURN success
+    ELSE:
+        LOG("✗ Failed to move '" + file.name + "'")
+        RETURN failure
+
+
+FUNCTION batch_organize(folder_id):
+    # Initialize
+    setup_category_folders()
+    files = list_all_files(folder_id)
+    
+    stats = {organized: 0, skipped: 0, errors: 0}
+    
+    # Process each file
+    FOR EACH file IN files:
+        result = organize_file(file)
+        
+        IF result == success:
+            stats.organized += 1
+        ELSE IF result == skip:
+            stats.skipped += 1
+        ELSE:
+            stats.errors += 1
+        
+        sleep(0.5)  # Rate limiting
+    
+    print_summary(stats)
+
+
+FUNCTION real_time_organize():
+    # Setup
+    setup_category_folders()
+    subscribe_to_webhooks()
+    start_flask_server()
+    
+    # Event loop
+    WHILE server_running:
+        WAIT FOR webhook_event
+        
+        IF event.type == "file_created" OR "file_updated":
+            new_files = get_unorganized_files()
+            
+            FOR EACH file IN new_files:
+                organize_file(file)
+```               
+
 ## Limitations
 
 ### Current Limitations
